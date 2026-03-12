@@ -1,0 +1,5 @@
+Your implementation must produce output for the following queries:
+
+1. Which players have a higher maximum speed during Game sessions than Practice sessions?
+
+2. Which players have the worst average sleep quality?

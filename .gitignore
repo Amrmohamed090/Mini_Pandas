@@ -1,0 +1,7 @@
+main
+main.exe
+testing/env/
+*.o
+*.exe
+env/
+/env

@@ -1,0 +1,7 @@
+Your implementation must calculate the following values:
+
+1. The mean maximum speed for each player during Practice sessions.
+
+2. The mean maximum speed for each player Game sessions.
+
+3. The mean, median, and mode of sleep quality for each player.

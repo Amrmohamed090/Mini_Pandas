@@ -1,0 +1,15 @@
+Soccer Performance Data
+=======================
+Soccer Performance data for Sports Science
+
+About Dataset
+
+The data is of ten hypothetical soccer players, their sleep duration, sleep quality, soreness, stress, as well as GPS metrics such as total distance, acceleration count, deceleration count, max acceleration, max deceleration, and max speed. The purpose of this data set is to off realistic data to those looking to work in sports science.
+
+Summary
+
+1 file
+14 columns
+410 rows
+
+https://www.kaggle.com/datasets/michaelhegedusich/soccer-performance-data
