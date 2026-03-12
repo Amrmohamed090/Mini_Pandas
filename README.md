@@ -1,4 +1,4 @@
-# Soccer Performance Data Analysis
+# Mini Pandas
 
 ## Overview
 
@@ -161,3 +161,4 @@ map<string, int> players = df.value_counts<string>("Name");
 └── deprecated/
     └── final.cpp                     # Previous iteration
 ```
+
