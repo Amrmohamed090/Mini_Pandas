@@ -15,7 +15,6 @@ Major problems solved
 
 
 extra todos:
-    support subscript
     support and, or , not operations for binary mask (currently it is only "and" operation)
     there are many if statements for each datatype in (read_csv, append, and potentially get_filter)
 */

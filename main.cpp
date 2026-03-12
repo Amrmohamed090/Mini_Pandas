@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <variant>
 #include <algorithm>
+#include <bitset>
 #include "csv.hpp"
 
 /*
@@ -16,12 +17,22 @@ Major problems solved
 
 
 extra todos:
-    support subscript
-    support and, or , not operations for binary mask (currently it is only "and" operation)
-    there are many if statements for each datatype in (read_csv, append, and potentially filter)
+    use dynamic bitset
 */
 
 using namespace std;
+
+
+
+/* BINARY MASK CONFIG */
+// the maximum size for the filter mask
+const size_t MAX_ROWS = 1000;
+
+
+//define the mask type
+using Mask = std::bitset<MAX_ROWS>;
+
+
 
 using CellValue = variant<int, double, string>;
 
@@ -36,12 +47,13 @@ private:
 public:
     Series() {}
 
-    void   push_back(T val)        { data.push_back(val); }
-    T      operator[](size_t i)    { return data[i]; }
-    size_t size()                  { return data.size(); }
-    vector<T>& get_data()          { return data; }
+    void       push_back(T val)    { data.push_back(val); }
 
-    void print_value(size_t i)     { cout << data[i]; }
+    // to make the series subscripable, like thes series[i]
+    T          operator[](size_t i){ return data[i]; }
+
+    // to return the full vector
+    vector<T>& get_data()          { return data; }
 
     double mean() {
         double sum = 0;
@@ -65,11 +77,6 @@ public:
             if (count > max_count) { max_count = count; mode_val = val; }
         return (double)mode_val;
     }
-
-    T      min()    { return *std::min_element(data.begin(), data.end()); }
-    T      max()    { return *std::max_element(data.begin(), data.end()); }
-    size_t argmin() { return std::min_element(data.begin(), data.end()) - data.begin(); }
-    size_t argmax() { return std::max_element(data.begin(), data.end()) - data.begin(); }
 };
 
 // a column in DataFrame is one of these three Series types
@@ -84,9 +91,6 @@ private:
     size_t num_rows = 0;
 
 public:
-    // get the number of rows
-    size_t row_count(){return num_rows;}
-
     // get a Series out of the map directly
     template<typename T>
     Series<T>& get_series(const string& name) {
@@ -219,32 +223,39 @@ public:
     }
 
     // const char* overload: converts "Jack" literals to string automatically so you don't need string("Jack")
-    vector<bool>* filter(string column_name, const char* value, vector<bool>* mask = nullptr) {
+    Mask filter(string column_name, const char* value, Mask* mask = nullptr) {
         return filter(column_name, string(value), mask);
     }
 
+
+    // this function returns a binary mask, this mask is the main idea of the whole code
     template<typename T>
-    vector<bool>* filter(string column_name, T value, vector<bool>* mask = nullptr) {
+    Mask filter(string column_name, T value, Mask* mask = nullptr) {
         // if the mask is null, we initialize a new mask with all ones (everything passes)
-        if (mask == nullptr) mask = new vector<bool>(num_rows, 1);
-
-        vector<T>& current_column = get_series<T>(column_name).get_data();
-
-        for (int i = 0; i < current_column.size(); i++) {
-            if (current_column[i] != value)
-                (*mask)[i] = 0;
+        if (mask == nullptr) {
+            mask = new Mask();
+            mask->set();   // set all bits to 1
         }
-        return mask;
+
+        
+        Series<T>& current_column = get_series<T>(column_name);
+
+        for (int i = 0; i < num_rows; i++) {
+            if (current_column[i] != value)
+                // set this bit to zero
+                mask->reset(i);
+        }
+        return *mask;
     }
 
     // return a new dataframe based on the binary_filter, you need to use filter() before you use this function
-    DataFrame where(vector<bool>* binary_filter) {
+    DataFrame where(Mask binary_filter) {
         // create a new dataframe that stores the new rows
         DataFrame new_df = DataFrame(&columns_names, &columns_dtypes);
 
         // iterate over the row_count and fill the new dataframe
         for (int i = 0; i < num_rows; i++) {
-            if ((*binary_filter)[i])
+            if (binary_filter.test(i))
                 new_df.append(this->get_row(i));
         }
 
@@ -263,35 +274,116 @@ public:
 };
 
 
-/*
-
-    1. Which players have a higher maximum speed during Game sessions than Practice sessions?
-
-    2. Which players have the worst average sleep quality?
+// int main() {
 
 
+//     // clean implementation
+    
+//     DataFrame df;
+//     df.read_csv("./Soccer Performance Data/Soccer Performance Data.csv");
 
-*/
+//     cout << "\n Data Frame Loaded\n" << endl;
+
+
+//     cout<<"1. The mean maximum speed for each player during Practice sessions.\n\n";
+
+//         // first, filter the dataframe for Practice sessions only
+//         DataFrame df_practice = df.where(df.filter("Session_Type", "Practice"));
+
+//         // second, we need to get the unique names
+//         map<string, int> mp = df.value_counts<string>("Name");
+
+//         // for each unique name, get the average maximum speed
+//         for (const auto& [key, value] : mp){
+//             DataFrame player = df_practice.where(df_practice.filter("Name", key));
+//             cout <<"    " << key << " : " << player.get_series<double>("Max_Speed").mean() << "\n";
+//         }
+//         cout<<'\n';
+
+
+//     cout << "2. The mean maximum speed for each player Game sessions.\n\n";
+
+//         //similarly for the Game session
+//         DataFrame df_game = df.where(df.filter("Session_Type", "Game"));
+//         for (const auto& [key, value] : mp){
+//             DataFrame player = df_game.where(df_game.filter("Name", key));
+//             cout <<"    " << key << " : " << player.get_series<double>("Max_Speed").mean() << "\n";
+//         }
+//         cout<<'\n';
+
+
+//     cout << "3. The mean, median, and mode of sleep quality for each player.\n\n";
+
+//         for (const auto& [key, value] : mp){
+//             // filter based on the player
+//             Series<double> player_sleep_quality = df.where(df.filter("Name", key)).get_series<double>("Sleep_Quality");
+//             cout <<"    " << key <<":\n";
+//             cout << "           mean: " << player_sleep_quality.mean()<<"   ";
+//             cout <<"median: " << player_sleep_quality.median()<<"   ";
+//             cout <<"mode: " << player_sleep_quality.mode() <<"\n";
+//         }
+//         cout<<'\n';
+
+
+//     cout <<"Queries\n\n1. Which players have a higher maximum speed during Game sessions than Practice sessions?\n\n";
+
+//         for (const auto& [key, value] : mp){
+//             double mean_practice = df_practice.where(df_practice.filter("Name", key)).get_series<double>("Max_Speed").mean();
+//             double mean_game     = df_game.where(df_game.filter("Name", key)).get_series<double>("Max_Speed").mean();
+//             if (mean_game > mean_practice)
+//                 cout << "    " << key << "  (Game: " << mean_game << "  >  Practice: " << mean_practice << ")\n";
+//         }
+//         cout<<'\n';
+
+//     cout << "2. Which players have the worst average sleep quality?\n\n";
+//         double worst = 1e9;
+//         for (const auto& [key, value] : mp) {
+//             double mean_sleep = df.where(df.filter("Name", key)).get_series<double>("Sleep_Quality").mean();
+//             if (mean_sleep < worst) worst = mean_sleep;
+//         }
+//         for (const auto& [key, value] : mp) {
+//             double mean_sleep = df.where(df.filter("Name", key)).get_series<double>("Sleep_Quality").mean();
+//             if (mean_sleep == worst)
+//                 cout << "    " << key << " : " << mean_sleep << "\n";
+//         }
+//         cout<<'\n';
+
+//     return 0;
+// }
+
+
+
+
 int main() {
 
+
+    // clean implementation using binary masks
+    
     DataFrame df;
     df.read_csv("./Soccer Performance Data/Soccer Performance Data.csv");
 
     cout << "\n Data Frame Loaded\n" << endl;
 
 
+    // initialize some filters to reuse them
+    Mask practice_session_mask = df.filter("Session_Type", "Practice");
+    Mask game_session_mask = df.filter("Session_Type", "Game");
+
+    // initialize a binary mask for each player
+    map<string, Mask>* players_mask_map = new map<string, Mask>;
+    map<string, int> mp = df.value_counts<string>("Name"); // first lets get the unique players names
+
+    // iterate over each player and fill its mask
+    for (const auto& [name, frequency] : mp)
+        (*players_mask_map)[name] = df.filter("Name", name);
+
+
     cout<<"1. The mean maximum speed for each player during Practice sessions.\n\n";
 
-        // first, filter the dataframe for Practice sessions only
-        DataFrame df_practice = df.where(df.filter("Session_Type", "Practice"));
-
-        // second, we need to get the unique names
-        map<string, int> mp = df.value_counts<string>("Name");
-
-        // for each unique name, get the average maximum speed
-        for (const auto& [key, value] : mp){
-            DataFrame player = df_practice.where(df_practice.filter("Name", key));
-            cout <<"    " << key << " : " << player.get_series<double>("Max_Speed").mean() << "\n";
+        // for each unique player, get the average maximum speed
+        for (const auto& [name, player_mask] : *players_mask_map){
+            DataFrame player = df.where(practice_session_mask & player_mask);
+            cout <<"    " << name << " : " << player.get_series<double>("Max_Speed").mean() << "\n";
         }
         cout<<'\n';
 
@@ -299,20 +391,18 @@ int main() {
     cout << "2. The mean maximum speed for each player Game sessions.\n\n";
 
         //similarly for the Game session
-        DataFrame df_game = df.where(df.filter("Session_Type", "Game"));
-        for (const auto& [key, value] : mp){
-            DataFrame player = df_game.where(df_game.filter("Name", key));
-            cout <<"    " << key << " : " << player.get_series<double>("Max_Speed").mean() << "\n";
+        for (const auto& [name, player_mask] : *players_mask_map){
+            DataFrame player = df.where(game_session_mask & player_mask);
+            cout <<"    " << name << " : " << player.get_series<double>("Max_Speed").mean() << "\n";
         }
         cout<<'\n';
 
-
     cout << "3. The mean, median, and mode of sleep quality for each player.\n\n";
 
-        for (const auto& [key, value] : mp){
-            // filter based on the player
-            Series<double> player_sleep_quality = df.where(df.filter("Name", key)).get_series<double>("Sleep_Quality");
-            cout <<"    " << key <<":\n";
+        for (const auto& [name, player_mask] : *players_mask_map){
+            // filter based on the player and get the sleep quality series
+            Series<double> player_sleep_quality = df.where(player_mask).get_series<double>("Sleep_Quality");
+            cout <<"    " << name <<":\n";
             cout << "           mean: " << player_sleep_quality.mean()<<"   ";
             cout <<"median: " << player_sleep_quality.median()<<"   ";
             cout <<"mode: " << player_sleep_quality.mode() <<"\n";
@@ -320,26 +410,29 @@ int main() {
         cout<<'\n';
 
 
+
+
+
     cout <<"Queries\n\n1. Which players have a higher maximum speed during Game sessions than Practice sessions?\n\n";
 
-        for (const auto& [key, value] : mp){
-            double mean_practice = df_practice.where(df_practice.filter("Name", key)).get_series<double>("Max_Speed").mean();
-            double mean_game     = df_game.where(df_game.filter("Name", key)).get_series<double>("Max_Speed").mean();
+        for (const auto& [name, player_mask] : *players_mask_map){
+            double mean_practice = df.where(player_mask & practice_session_mask).get_series<double>("Max_Speed").mean();
+            double mean_game     = df.where(player_mask & game_session_mask).get_series<double>("Max_Speed").mean();
             if (mean_game > mean_practice)
-                cout << "    " << key << "  (Game: " << mean_game << "  >  Practice: " << mean_practice << ")\n";
+                cout << "    " << name << "  (Game: " << mean_game << "  >  Practice: " << mean_practice << ")\n";
         }
         cout<<'\n';
 
     cout << "2. Which players have the worst average sleep quality?\n\n";
         double worst = 1e9;
-        for (const auto& [key, value] : mp) {
-            double mean_sleep = df.where(df.filter("Name", key)).get_series<double>("Sleep_Quality").mean();
+        for (const auto& [name, player_mask] : *players_mask_map){
+            double mean_sleep = df.where(player_mask).get_series<double>("Sleep_Quality").mean();
             if (mean_sleep < worst) worst = mean_sleep;
         }
-        for (const auto& [key, value] : mp) {
-            double mean_sleep = df.where(df.filter("Name", key)).get_series<double>("Sleep_Quality").mean();
+        for (const auto& [name, player_mask] : *players_mask_map){
+            double mean_sleep = df.where(player_mask).get_series<double>("Sleep_Quality").mean();
             if (mean_sleep == worst)
-                cout << "    " << key << " : " << mean_sleep << "\n";
+                cout << "    " << name << " : " << mean_sleep << "\n";
         }
         cout<<'\n';
 
